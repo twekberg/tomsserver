@@ -23,15 +23,15 @@ Do not create a venv. The installs here should be to the system
 Before Starting
 ===============
 
-Before getting started it may be useful to install some packages manually:
+Before getting started it may be useful to install some packages manually::
 
-    sudo apt  install emacs-nox
-    sudo apt install ansible
+  sudo apt  install emacs-nox
+  sudo apt install ansible
 
 =========
 Deploying
 =========
 
-Run this command:
+Run this command::
 
-    deploy/install.yml -v --ask-become-pass --vault-password-file vault_pass.txt
+  deploy/install.yml -v --ask-become-pass --vault-password-file vault_pass.txt
