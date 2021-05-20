@@ -1,0 +1,5 @@
+*.pyc
+*~
+\#*
+.\#*
+vault_pass.txt
