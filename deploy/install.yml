@@ -4,7 +4,7 @@
   become: yes
 
   vars:
-    - HOME: "{{ ansible_env.HOME }}"
+    - HOME: "/home/tekberg"
 
   vars_files:
     - secrets.yml
@@ -128,3 +128,64 @@
       loop:
         - /tmp/releases
         - /tmp/saml2aws.tar
+
+
+    - name: clone system repos
+      git:
+        clone: yes
+        repo: "git@gitlab.labmed.uw.edu:systems/{{ item }}.git"
+        dest: "{{ HOME }}/src/{{ item }}"
+      loop:
+        - ariel
+        - headsup
+        - replicated_dbs
+      become: true
+      become_user: tekberg
+
+    - name: clone uwlabmed repos
+      git:
+        clone: yes
+        repo: "git@gitlab.labmed.uw.edu:uwlabmed/{{ item }}.git"
+        dest: "{{ HOME }}/src/{{ item }}"
+      loop:
+        - ansible_roles
+        - ansible_scripts
+        - dokku-stack
+        - genetics_db
+        - hemepath_ad_hoc
+        - labreport
+        - lmbackup
+        - moinmoin-config
+        - oltg-flask
+        - personnel
+        - tracker
+        - userbase
+      become: true
+      become_user: tekberg
+
+    - name: clone uwlabmed repos with different names
+      git:
+        clone: yes
+        repo: "git@gitlab.labmed.uw.edu:uwlabmed/{{ item.0 }}.git"
+        dest: "{{ HOME }}/src/{{ item.1 }}"
+      with_nested:
+        - ['Portia', 'portia']
+        - ['tracker', 'tracker-old']
+        - ['tracker-new', 'tracker']
+        - ['userbase', 'elmira']
+      become: true
+      become_user: tekberg
+
+# Todo:
+#   Update notes with the git clone commands
+#   Put the vault password in secrets.yml
+#   create the vault password file for each repo
+#   Do the setup described in the portia README file.
+#   Set up the crontab for root and tekberg
+#  Copy this:
+#    SANDBOX
+#  Create these directories:
+#    lis_archive
+#    lis_data
+#    lis_pdf
+
