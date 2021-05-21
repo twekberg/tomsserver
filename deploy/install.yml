@@ -56,6 +56,7 @@
         - diceware
         - docx2txt
         - python3-pip
+        - rst2pdf
 
 
     - name: is saml2aws already installed
@@ -75,33 +76,36 @@
         url: https://github.com/Versent/saml2aws/releases
         dest: /tmp/releases
         mode: '0440'
-      register: new_release
       when: not stat_saml2aws.stat.exists or (stat_saml2aws.stat.exists and saml2aws_version.stderr is version('2.30.0', '<'))
+
+    - name: new saml2aws release
+      stat:
+        path: /tmp/releases
+      register: new_release
 
     - name: get saml2aws path
       shell: grep linux_amd64 /tmp/releases | head -1 | cut -d= -f2 | cut '-d"' -f2
       register: saml2aws_partial_path
-      when: new_release is defined
-
+      when: new_release.stat.exists
 
     - name: get saml2aws tar
       get_url:
         url: "{{ 'https://github.com' + saml2aws_partial_path.stdout }}"
         dest: "/tmp/saml2aws.tar"
         mode: '0755'
-      when: saml2aws_partial_path is defined
+      when: new_release.stat.exists
 
     - name: create swml2aws tar directory
       file:
         path: /tmp/saml2aws_dir
         state: directory
-      when: saml2aws_partial_path is defined
+      when: new_release.stat.exists
 
     - name: untar saml2aws
       unarchive:
         src: "/tmp/saml2aws.tar"
         dest: "/tmp/saml2aws_dir"
-      when: saml2aws_partial_path is defined
+      when: new_release.stat.exists
 
     - name: install saml2aws
       copy:
@@ -110,16 +114,17 @@
         mode: 755
         owner: root
         group: root
-      when: saml2aws_partial_path is defined
+      when: new_release.stat.exists
 
     - name: cleanup saml2aws directory
       file:
         state: absent
         path: /tmp/saml2aws_dir
-      when: saml2aws_partial_path is defined
 
     - name: cleanup saml2aws files
       file:
         state: absent
-        path: /tmp/releases
-      when: new_release is defined
+        path: "{{ item }}"
+      loop:
+        - /tmp/releases
+        - /tmp/saml2aws.tar
