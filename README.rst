@@ -12,21 +12,26 @@ Intruduction
 This is a completely local ansible script intended to prevent from
 having to load all of this stuff again.
 
-===========
-Create venv
-===========
+=================
+Create venv - NOT
+=================
 
-Do not create a venv. The installs here should be to the system
+No need to create a venv for this. The few packages that are installed
+need to be done at the system level, so the other repos can access
+them.
 
 
 ===============
 Before Starting
 ===============
 
-Before getting started it may be useful to install some packages manually::
+Run the following commands before starting the install::
 
-  sudo apt  install emacs-nox
   sudo apt install ansible
+  ssh-copy-id ihop.labmed.uw.edu
+  ssh-copy-id users.labmed.uw.edu
+  ssh-copy-id db3.labmed.uw.edu
+  ssh-copy-id portia.labmed.uw.edu"
 
 =========
 Deploying

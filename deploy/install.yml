@@ -53,8 +53,10 @@
         name: "{{ item }}"
         state: present
       loop:
+        - emacs-nox
         - diceware
         - docx2txt
+        - python3-venv
         - python3-pip
         - rst2pdf
 
@@ -111,7 +113,7 @@
       copy:
         src: /tmp/saml2aws_dir/saml2aws
         dest: /usr/local/bin/saml2aws
-        mode: 755
+        mode: 0755
         owner: root
         group: root
       when: new_release.stat.exists
@@ -158,8 +160,6 @@
         - moinmoin-config
         - oltg-flask
         - personnel
-        - tracker
-        - userbase
       become: true
       become_user: tekberg
 
@@ -168,7 +168,7 @@
         clone: yes
         repo: "git@gitlab.labmed.uw.edu:uwlabmed/{{ item.0 }}.git"
         dest: "{{ HOME }}/src/{{ item.1 }}"
-      with_nested:
+      loop:
         - ['Portia', 'portia']
         - ['tracker', 'tracker-old']
         - ['tracker-new', 'tracker']
@@ -176,16 +176,199 @@
       become: true
       become_user: tekberg
 
-# Todo:
-#   Update notes with the git clone commands
-#   Put the vault password in secrets.yml
-#   create the vault password file for each repo
-#   Do the setup described in the portia README file.
-#   Set up the crontab for root and tekberg
-#  Copy this:
-#    SANDBOX
-#  Create these directories:
-#    lis_archive
-#    lis_data
-#    lis_pdf
+    - name: update notes.txt to contain the clone commands
+      lineinfile:
+        dest="{{ HOME }}/src/notes.txt"
+        state=present
+        create=no
+        owner=tekberg
+        group=tekberg
+        mode=0664
+        backrefs=no
+        regexp="{{ item.0 }}[.]git"
+        line="git clone git@gitlab.labmed.uw.edu:{{ item.0 }}.git {{ item.1 }}"
+      loop:
+        - ['systems/ariel', 'ariel']
+        - ['systems/headsup', 'headsup']
+        - ['systems/replicated_dbs', 'replicated_dbs']
+        - ['uwlabmed/ansible_roles', 'ansible_roles']
+        - ['uwlabmed/ansible_scripts', 'ansible_scripts']
+        - ['uwlabmed/dokku-stack', 'dokku-stack']
+        - ['uwlabmed/genetics_db', 'genetics_db']
+        - ['uwlabmed/hemepath_ad_hoc', 'hemepath_ad_hoc']
+        - ['uwlabmed/labreport', 'labreport']
+        - ['uwlabmed/lmbackup', 'lmbackup']
+        - ['uwlabmed/moinmoin-config', 'moinmoin-config']
+        - ['uwlabmed/oltg-flask', 'oltg-flask']
+        - ['uwlabmed/personnel', 'personnel']
+        - ['uwlabmed/Portia', 'portia']
+        - ['uwlabmed/tracker', 'tracker-old']
+        - ['uwlabmed/tracker-new', 'tracker']
+        - ['uwlabmed/userbase', 'elmira']
 
+    # Put in only repos that need it. They have it in the .gitignore file.
+    - name: copy vault pass
+      copy:
+        content: "{{ VAULT_PASS }}"
+        dest: "{{ HOME }}/src/{{ item }}/vault_pass.txt"
+        owner: tekberg
+        group: tekberg
+        mode: 0664
+      loop:
+        - dokku-stack
+        - headsup
+        - lmbackup
+        - moinmoin-config
+        - oltg-flask
+        - personnel
+        - portia
+        - replicated_dbs
+        - tracker
+        - tracker-old
+
+    - name: Create venvs for select repos.
+      script: scripts/create_venv.sh "{{ item }}"
+      loop:
+         - portia
+         - personnel
+         - moinmoin-config
+         - replicated_dbs
+         - dokku-stack
+         - tracker
+         - ariel
+         - oltg-flask
+         - elmira
+         - headsup
+      become: true
+      become_user: tekberg
+
+    - name: portia user setup - .pgpass
+      template:
+        src: templates/pgpass
+        dest: "{{ HOME }}/.pgpass"
+        owner: tekberg
+        group: tekberg
+        mode: 0600
+
+    # Do all of the MAILTOs here
+    - name: MAILTO crontab setup
+      cronvar:
+        user="tekberg"
+        name="MAILTO"
+        value="lmscribe@u.washington.edu"
+      tags:
+        - cron
+
+    - name: set up ssh for oltg-aws-test
+      blockinfile:
+        create: yes
+        dest: "{{ HOME }}/.ssh/config"
+        marker: "# {mark} test added tomsserver repo in deploy/install.yml"
+        insertbefore: BOF
+        content: |
+          Host oltg-aws-test
+            HostName 54.186.96.31
+            User ubuntu
+            IdentityFile ~/.ssh/oltg.pem
+            StrictHostKeyChecking no
+            ProxyCommand ssh ihop exec nc %h %p 2> /dev/null
+
+    - name: set up ssh for oltg-aws-prod
+      blockinfile:
+        create: yes
+        dest: "{{ HOME }}/.ssh/config"
+        marker: "# {mark} prod added tomsserver repo in deploy/install.yml"
+        insertbefore: BOF
+        content: |
+          Host oltg-aws-prod
+            HostName 54.188.79.235
+            User ubuntu
+            IdentityFile ~/.ssh/oltg.pem
+            StrictHostKeyChecking no
+            ProxyCommand ssh ihop exec nc %h %p 2> /dev/null
+
+    - name: oltg.pem to .ssh
+      copy:
+        content: "{{ PRIVATE_AWS_OLTG_KEY }}"
+        dest: "{{ HOME }}/.ssh/oltg.pem"
+        owner: tekberg
+        group: tekberg
+        mode: 0600
+
+    - name: cron to copy JSON files
+      cron:
+        user: tekberg
+        name: "copy JSON files"
+        job: "scp -q monitor.labmed.uw.edu:/home/filetransfer/plm-json/*.json src/headsup/json 2>&1"
+        minute: "0-59/5"
+
+    # Only run when this cron on toms server stops running
+    - name: cron to install portia reports
+      cron:
+        user: tekberg
+        name: "install portia reports"
+        job: "src/portia/scripts/install-reports.sh"
+        minute: "15"
+      tags:
+        - never
+
+    # Only run when this cron on toms server stops running
+    - name: cron to update user access for portia reports
+      cron:
+        user: tekberg
+        name: "update user access for portia reports"
+        job: "src/portia/scripts/update-user-access.sh"
+        minute: "3"
+      tags:
+        - never
+
+
+    - name: cron to check time delta
+      cron:
+        user: tekberg
+        name: "check time delta"
+        job: "bin/host_time_delta.sh"
+        minute: "10"
+        hour: "1"
+
+    - name: create SANDBOX directory
+      file:
+        path: "{{ HOME }}/SANDBOX"
+        state: directory
+      become: true
+      become_user: tekberg
+
+    - name: preserve SANDBOX files
+      command: "rsync -a tekberg@10.144.70.199:SANDBOX/ {{ HOME }}/SANDBOX/"
+      become: true
+      become_user: tekberg
+# This didn't work
+#    - name: preserve SANDBOX files
+#      synchronize:
+#        archive: yes
+#        src: "tekberg@10.144.70.199:{{ HOME }}/SANDBOX/"
+#        dest: "{{ HOME }}/SANDBOX/"
+#      become: true
+#      become_user: tekberg
+
+
+    - name: create labreport directory lis_archive
+      file:
+        path: "{{ HOME }}/lis_archive"
+        state: directory
+      become: true
+      become_user: tekberg
+
+    - name: create labreport directory lis_data
+      file:
+        path: "{{ HOME }}/lis_data"
+        state: directory
+      become: true
+      become_user: tekberg
+
+    - name: create labreport directory lis_pdf
+      file:
+        path: "{{ HOME }}/lis_pdf"
+        state: directory
+      become: true
+      become_user: tekberg
