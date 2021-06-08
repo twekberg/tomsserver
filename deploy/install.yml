@@ -54,6 +54,7 @@
         state: present
       loop:
         - emacs-nox
+        - emacs-ela
         - diceware
         - docx2txt
         - python3-venv
@@ -242,6 +243,20 @@
       become: true
       become_user: tekberg
 
+    - name: define alias for tomsserver in .bashrc
+      lineinfile:
+        dest="{{ HOME }}/.bashrc"
+        state=present
+        create=no
+        owner=tekberg
+        group=tekberg
+        mode=0664
+        backrefs=no
+        regexp="atomsserver"
+        line="alias atomsserver='if [ \"$(type deactivate 2>/dev/null | grep '\\''deactivate is a function'\\''|wc -l)\" -eq 1 ]; then   deactivate; fi; cd /home/tekberg/src/tomsserver'"
+      tags:
+        alias
+
     - name: portia user setup - .pgpass
       template:
         src: templates/pgpass
@@ -259,15 +274,20 @@
       tags:
         - cron
 
+    - name: set up ssh
+      copy:
+        dest: "{{ HOME }}/.ssh/config"
+        content: |
+          Include includes/*
+
     - name: set up ssh for oltg-aws-test
       blockinfile:
         create: yes
-        dest: "{{ HOME }}/.ssh/config"
-        marker: "# {mark} test added tomsserver repo in deploy/install.yml"
-        insertbefore: BOF
+        dest: "{{ HOME }}/.ssh/includes/oltg-test-aws-test.conf"
+        marker: "# {mark} config for oltg-test-aws-test"
         content: |
           Host oltg-aws-test
-            HostName 54.186.96.31
+            HostName 35.166.228.21
             User ubuntu
             IdentityFile ~/.ssh/oltg.pem
             StrictHostKeyChecking no
@@ -276,12 +296,11 @@
     - name: set up ssh for oltg-aws-prod
       blockinfile:
         create: yes
-        dest: "{{ HOME }}/.ssh/config"
-        marker: "# {mark} prod added tomsserver repo in deploy/install.yml"
-        insertbefore: BOF
+        dest: "{{ HOME }}/.ssh/includes/oltg-test-aws-prod.conf"
+        marker: "# {mark} config for oltg-prod-aws-prod"
         content: |
           Host oltg-aws-prod
-            HostName 54.188.79.235
+            HostName 34.210.105.200
             User ubuntu
             IdentityFile ~/.ssh/oltg.pem
             StrictHostKeyChecking no
@@ -295,12 +314,85 @@
         group: tekberg
         mode: 0600
 
+    - name: create aws parameters directory
+      file:
+        path: "{{ HOME}}/.aws"
+        state: directory
+        owner: tekberg
+        group: tekberg
+        mode: 0775
+      tags:
+        aws
+
+    - name: check aws config file
+      stat:
+        path: "{{ HOME }}/.aws/config"
+      register: aws_config
+      tags:
+        aws
+
+    - name: check aws credentials file
+      stat:
+        path: "{{ HOME }}/.aws/credentials"
+      register: aws_credentials
+      tags:
+        aws
+
+    - name: check aws .saml2aws file
+      stat:
+        path: "{{ HOME }}/.saml2aws"
+      register: aws_saml2aws
+      tags:
+        aws
+
+    - name: get aws config parameters
+      command: "scp tekberg@10.144.70.199:.aws/config {{ HOME }}/.aws"
+      when: not aws_config.stat.exists
+      become: true
+      become_user: tekberg
+      tags:
+        aws
+
+    - name: get aws credentials parameters
+      command: "scp tekberg@10.144.70.199:.aws/credentials {{ HOME }}/.aws"
+      when: not aws_credentials.stat.exists
+      become: true
+      become_user: tekberg
+      tags:
+        aws
+
+    - name: get aws .saml2aws parameters
+      command: "scp tekberg@10.144.70.199:.saml2aws {{ HOME }}/.saml2aws"
+      when: not aws_saml2aws.stat.exists
+      become: true
+      become_user: tekberg
+      tags:
+        aws
+
+    - name: fix aws parameter file permissions
+      file:
+        path: "{{ HOME }}/{{ item }}"
+        mode: 0700
+      loop:
+        - .aws/config
+        - .aws/credentials
+        - .saml2aws
+      tags:
+        aws
+
     - name: cron to copy JSON files
       cron:
         user: tekberg
         name: "copy JSON files"
         job: "scp -q monitor.labmed.uw.edu:/home/filetransfer/plm-json/*.json src/headsup/json 2>&1"
         minute: "0-59/5"
+
+    - name: create PLM json directory directory
+      file:
+        path: "{{ HOME }}/headsup/json"
+        state: directory
+      become: true
+      become_user: tekberg
 
     # Only run when this cron on toms server stops running
     - name: cron to install portia reports

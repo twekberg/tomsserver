@@ -6,11 +6,25 @@ Setup for TomsServer
 .. contents::
 
 ============
-Intruduction
+Introduction
 ============
 
 This is a completely local ansible script intended to prevent from
-having to load all of this stuff again.
+having to load all of this stuff again. The following are done::
+
+  installs ssh public and private keys
+  installs python 3.9, current saml2aws
+  installs other packages
+  clones various repos
+  places a vault_pass.txt for various repos
+  creates venvs for various repos
+  performs setup needed for the portia repo
+  sets up crontab
+  sets up ssh config file for oltg-aws-prod and oltg-aws-test
+  creates cron jobs
+  copies files in SANDBOX from the other host.
+  copies AWS files from the other host.
+  creates local directoried for labreport.
 
 =================
 Create venv - NOT
@@ -32,6 +46,8 @@ Run the following commands before starting the install::
   ssh-copy-id users.labmed.uw.edu
   ssh-copy-id db3.labmed.uw.edu
   ssh-copy-id portia.labmed.uw.edu"
+
+There may be more ssh-copy-id commands that need to be run for other hosts.
 
 =========
 Deploying
