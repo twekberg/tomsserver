@@ -1,0 +1,6 @@
+[MESSAGES CONTROL]
+
+# Ignores this warning:
+#   W1202: Use % formatting in logging functions and pass the % parameters as arguments
+#   (logging-format-interpolation)
+disable=logging-format-interpolation

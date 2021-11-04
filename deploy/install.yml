@@ -54,13 +54,17 @@
         state: present
       loop:
         - emacs-nox
-        - emacs-ela
+        - emacs-el
         - diceware
         - docx2txt
+        - dos2unix
+        - pandoc
+        - pylint
         - python3-venv
         - python3-pip
         - rst2pdf
-
+        - incron
+        - sqlite3
 
     - name: is saml2aws already installed
       stat:
@@ -177,6 +181,14 @@
       become: true
       become_user: tekberg
 
+    - name: create .pylintrc
+      copy:
+        src: templates/pylintrc
+        dest: "{{ HOME }}.pylintrc"
+        mode: 0755
+        owner: tekberg
+        group: tekberg
+
     - name: update notes.txt to contain the clone commands
       lineinfile:
         dest="{{ HOME }}/src/notes.txt"
@@ -265,14 +277,28 @@
         group: tekberg
         mode: 0600
 
+    # See comment below regarding this user.
+    - name: create retrieve user
+      user:
+        name: retrieve
+        generate_ssh_key: yes
+        password: "{{ RETRIEVE_PASSWORD }}"
+        shell: /bin/bash
+      tags:
+        - retrieve
+
     # Do all of the MAILTOs here
     - name: MAILTO crontab setup
       cronvar:
-        user="tekberg"
+        user="{{ item }}"
         name="MAILTO"
-        value="lmscribe@u.washington.edu"
+        value="tekberg@uw.edu"
+      loop:
+        - tekberg
+        - retrieve
       tags:
         - cron
+        - retrieve
 
     - name: set up ssh
       copy:
@@ -380,12 +406,14 @@
       tags:
         aws
 
-    - name: cron to copy JSON files
+    - name: cron to copy PLM JSON files
       cron:
         user: tekberg
         name: "copy JSON files"
         job: "scp -q monitor.labmed.uw.edu:/home/filetransfer/plm-json/*.json src/headsup/json 2>&1"
         minute: "0-59/5"
+      tags:
+        - cron
 
     - name: create PLM json directory directory
       file:
@@ -422,6 +450,40 @@
         job: "bin/host_time_delta.sh"
         minute: "10"
         hour: "1"
+      tags:
+        - cron
+
+    - name: cron to look for new report groups.
+      cron:
+        user: tekberg
+        name: "Check to see if there are new Elmira groups."
+        job: "src/portia/scripts/update-user-access.sh"
+        minute: "3"
+      tags:
+        - cron
+
+    # Read the static OLTG tar file from the prod host, for now.
+    # When Noah figures out how to read an s3 bucket on labweb,
+    # this can go away. The export starts at 0:00 and takes about
+    # 27 minutes to run.
+    - name: Read the static OLTG tar file from the prod host.
+      cron:
+        user: tekberg
+        name: "Read the static OLTG tar file from the prod host."
+        job: "scp -q ubuntu@oltg-aws-prod:/tmp/oltg-static.tar.gz /tmp && scp -q /tmp/oltg-static.tar.gz labweb@ovid.u.washington.edu:public_html/static_oltg/"
+        minute: "40"
+        hour: "0"
+      tags:
+        - cron
+
+    - name: Keep portia reports in sync with the database.
+      cron:
+        user: tekberg
+        name: "Keep portia reports in sync with the database."
+        job: "src/portia/scripts/install-reports.sh"
+        minute: "15"
+      tags:
+        - cron
 
     - name: create SANDBOX directory
       file:
@@ -464,3 +526,58 @@
         state: directory
       become: true
       become_user: tekberg
+
+    # The retrieve user exists to copy files from elsewhere to here.
+    # Specifically the aws sync command it used to copy Elmira user
+    # data files here. The primary user of this data is portia
+    # reports.
+    - name: create .aws directory
+      file:
+        path: /home/retrieve/.aws
+        state: directory
+        owner: retrieve
+        group: retrieve
+        mode: 0755
+      tags:
+        - retrieve
+
+    - name: create aws config file
+      copy:
+        src: templates/aws_config
+        dest: /home/retrieve/.aws/config
+        owner: retrieve
+        group: retrieve
+        mode: 0600
+      tags:
+        - retrieve
+
+    - name: create aws credentials file
+      template:
+        src: templates/aws_credentials
+        dest: /home/retrieve/.aws/credentials
+        owner: retrieve
+        group: retrieve
+        mode: 0600
+      tags:
+        - retrieve
+
+    - name: create /usr/local/share/elmira directory
+      file:
+        path: /usr/local/share/elmira
+        state: directory
+        owner: retrieve
+        group: retrieve
+        mode: 0755
+      tags:
+        - retrieve
+
+    # Using sync instead of cp in case the files haven't changed,
+    # which is frequently the case.
+    - name: cron to copy Elmira JSON files
+      cron:
+        user: retrieve
+        name: "copy Elmira JSON files"
+        job: "/usr/local/bin/aws s3 sync s3://elmira-resources/userdata/ /usr/local/share/elmira/ --exclude '*' --include '*.json' --exclude medialab.json"
+        minute: "4"
+      tags:
+        - retrieve

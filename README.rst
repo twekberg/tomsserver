@@ -24,7 +24,8 @@ having to load all of this stuff again. The following are done::
   creates cron jobs
   copies files in SANDBOX from the other host.
   copies AWS files from the other host.
-  creates local directoried for labreport.
+  creates local directories for labreport.
+  creates retrieve user and cron job to copy s3 files to here.
 
 =================
 Create venv - NOT
@@ -43,9 +44,11 @@ Run the following commands before starting the install::
 
   sudo apt install ansible
   ssh-copy-id ihop.labmed.uw.edu
-  ssh-copy-id users.labmed.uw.edu
+  ssh-copy-id users.labmed.uw.edu    # May not be needed anymore
   ssh-copy-id db3.labmed.uw.edu
+  ssh-copy-id ekberg@db3.labmed.uw.edu
   ssh-copy-id portia.labmed.uw.edu"
+  ssh-copy-id labweb@ovid.u.washington.edu:
 
 There may be more ssh-copy-id commands that need to be run for other hosts.
 
