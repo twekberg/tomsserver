@@ -58,60 +58,76 @@
         - diceware
         - docx2txt
         - dos2unix
+        - mercurial
         - pandoc
         - pylint
         - python3-venv
+        - python3-virtualenv
         - python3-pip
         - rst2pdf
         - incron
         - sqlite3
 
-    - name: is saml2aws already installed
-      stat:
-        path: /usr/local/bin/saml2aws
-      register: stat_saml2aws
 
+    - name: current saml2aws version or 0.0.0
+      shell: "if [ -x /usr/local/bin/saml2aws ]; then  saml2aws --version 2>&1; else  echo '0.0.0'; fi"
+      register: saml2aws_current_version
+      tags:
+        - saml2aws
 
-    - name: get saml2aws version
-      shell: "saml2aws --version | rev | cut -d ' ' -f1 | rev"
-      register: saml2aws_version
-      when: stat_saml2aws.stat.exists
-
-    # 2.30.0 is the latest saml2aws when this was written.
-    - name: check saml2aws version
+    - name: get file that has latest saml2aws version
       get_url:
         url: https://github.com/Versent/saml2aws/releases
         dest: /tmp/releases
         mode: '0440'
-      when: not stat_saml2aws.stat.exists or (stat_saml2aws.stat.exists and saml2aws_version.stderr is version('2.30.0', '<'))
+      tags:
+        - saml2aws
 
-    - name: new saml2aws release
+    - name: get latest saml2aws version
+      shell: grep '[>]v' /tmp/releases | head -1 | cut -dv -f2 | cut '-d<' -f1
+      register: saml2aws_latest_version
+      tags:
+        - saml2aws
+
+    - name: compare current with latest version
+      ansible.builtin.file:
+        path: "/tmp/releases-checked"
+        state: touch
+      when: "saml2aws_latest_version.stdout is version(saml2aws_current_version.stdout, '>')"
+      tags:
+        - saml2aws
+
+
+    - name: used to indicate new version
       stat:
-        path: /tmp/releases
+        path: /tmp/releases-checked
       register: new_release
-
-    - name: get saml2aws path
-      shell: grep linux_amd64 /tmp/releases | head -1 | cut -d= -f2 | cut '-d"' -f2
-      register: saml2aws_partial_path
-      when: new_release.stat.exists
+      tags:
+        - saml2aws
 
     - name: get saml2aws tar
       get_url:
-        url: "{{ 'https://github.com' + saml2aws_partial_path.stdout }}"
+        url: "{{ 'https://github.com/Versent/saml2aws/releases/download/v' + saml2aws_latest_version.stdout + '/saml2aws_' + saml2aws_latest_version.stdout + '_linux_amd64.tar.gz' }}"
         dest: "/tmp/saml2aws.tar"
         mode: '0755'
       when: new_release.stat.exists
+      tags:
+        - saml2aws
 
     - name: create swml2aws tar directory
       file:
         path: /tmp/saml2aws_dir
         state: directory
       when: new_release.stat.exists
+      tags:
+        - saml2aws
 
     - name: untar saml2aws
       unarchive:
         src: "/tmp/saml2aws.tar"
         dest: "/tmp/saml2aws_dir"
+      tags:
+        - saml2aws
       when: new_release.stat.exists
 
     - name: install saml2aws
@@ -122,11 +138,15 @@
         owner: root
         group: root
       when: new_release.stat.exists
+      tags:
+        - saml2aws
 
     - name: cleanup saml2aws directory
       file:
         state: absent
         path: /tmp/saml2aws_dir
+      tags:
+        - saml2aws
 
     - name: cleanup saml2aws files
       file:
@@ -135,6 +155,9 @@
       loop:
         - /tmp/releases
         - /tmp/saml2aws.tar
+        - /tmp/releases-checked
+      tags:
+        - saml2aws
 
 
     - name: clone system repos
@@ -421,69 +444,6 @@
         state: directory
       become: true
       become_user: tekberg
-
-    # Only run when this cron on toms server stops running
-    - name: cron to install portia reports
-      cron:
-        user: tekberg
-        name: "install portia reports"
-        job: "src/portia/scripts/install-reports.sh"
-        minute: "15"
-      tags:
-        - never
-
-    # Only run when this cron on toms server stops running
-    - name: cron to update user access for portia reports
-      cron:
-        user: tekberg
-        name: "update user access for portia reports"
-        job: "src/portia/scripts/update-user-access.sh"
-        minute: "3"
-      tags:
-        - never
-
-
-    - name: cron to check time delta
-      cron:
-        user: tekberg
-        name: "check time delta"
-        job: "bin/host_time_delta.sh"
-        minute: "10"
-        hour: "1"
-      tags:
-        - cron
-
-    - name: cron to look for new report groups.
-      cron:
-        user: tekberg
-        name: "Check to see if there are new Elmira groups."
-        job: "src/portia/scripts/update-user-access.sh"
-        minute: "3"
-      tags:
-        - cron
-
-    # Read the static OLTG tar file from the prod host, for now.
-    # When Noah figures out how to read an s3 bucket on labweb,
-    # this can go away. The export starts at 0:00 and takes about
-    # 27 minutes to run.
-    - name: Read the static OLTG tar file from the prod host.
-      cron:
-        user: tekberg
-        name: "Read the static OLTG tar file from the prod host."
-        job: "scp -q ubuntu@oltg-aws-prod:/tmp/oltg-static.tar.gz /tmp && scp -q /tmp/oltg-static.tar.gz labweb@ovid.u.washington.edu:public_html/static_oltg/"
-        minute: "40"
-        hour: "0"
-      tags:
-        - cron
-
-    - name: Keep portia reports in sync with the database.
-      cron:
-        user: tekberg
-        name: "Keep portia reports in sync with the database."
-        job: "src/portia/scripts/install-reports.sh"
-        minute: "15"
-      tags:
-        - cron
 
     - name: create SANDBOX directory
       file:
