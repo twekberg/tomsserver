@@ -43,12 +43,16 @@ Before Starting
 Run the following commands before starting the install::
 
   sudo apt install ansible
-  ssh-copy-id ihop.labmed.uw.edu
-  ssh-copy-id users.labmed.uw.edu    # May not be needed anymore
   ssh-copy-id db3.labmed.uw.edu
   ssh-copy-id ekberg@db3.labmed.uw.edu
-  ssh-copy-id portia.labmed.uw.edu"
-  ssh-copy-id labweb@ovid.u.washington.edu:
+  ssh-copy-id francisco.labmed.uw.edu
+  ssh-copy-id ihop.labmed.uw.edu
+  ssh-copy-id monitor.dlmp-dev.uw.edu
+  ssh-copy-id monitor.labmed.uw.edu
+  ssh-copy-id portia.labmed.uw.edu
+  ssh-copy-id tracker.dlmp.uw.edu
+  ssh-copy-id tracker.labmed.uw.edu
+  ssh-copy-id users.labmed.uw.edu    # May not be needed anymore
 
 There may be more ssh-copy-id commands that need to be run for other hosts.
 
