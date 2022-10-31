@@ -6,6 +6,7 @@
   vars:
     - ME: tekberg
     - HOME: "/home/{{ ME }}"
+    # Set OLD_ANSIBLE_HOST to "NONE" to ignore.
     - OLD_ANSIBLE_HOST: "10.144.70.199"
     - PYTHON_VERSION: "3.11"
 
@@ -205,6 +206,17 @@
       become: true
       become_user: "{{ ME }}"
 
+    - name: clone compstaff repos
+      git:
+        clone: yes
+        repo: "git@gitlab.labmed.uw.edu:compstaff/{{ item }}.git"
+        dest: "{{ HOME }}/src/{{ item }}"
+      loop:
+        - francisco_scripts
+      become: true
+      become_user: "{{ ME }}"
+
+
     - name: clone uwlabmed repos with different names
       git:
         clone: yes
@@ -238,6 +250,7 @@
         regexp="{{ item.0 }}[.]git"
         line="git clone git@gitlab.labmed.uw.edu:{{ item.0 }}.git {{ item.1 }}"
       loop:
+        - ['compstaff/francisco_scripts', 'francisco_scripts']
         - ['systems/ariel', 'ariel']
         - ['systems/headsup', 'headsup']
         - ['systems/replicated_dbs', 'replicated_dbs']
@@ -408,38 +421,43 @@
       tags:
         aws
 
-    - name: get aws config parameters
-      command: "scp {{ ME }}@{{ OLD_ANSIBLE_HOST }}:.aws/config {{ HOME }}/.aws"
+
+    - name: set up aws config parameters
+      template:
+        src: templates/dot_aws_config
+        dest: "{{ HOME }}/.aws/config"
+        owner: "{{ ME }}"
+        group: "{{ ME }}"
+        mode: 0700
       when: not aws_config.stat.exists
       become: true
       become_user: "{{ ME }}"
       tags:
         aws
 
-    - name: get aws credentials parameters
-      command: "scp {{ ME }}@{{ OLD_ANSIBLE_HOST }}:.aws/credentials {{ HOME }}/.aws"
+    - name: set up aws credentials parameters
+      template:
+        src: templates/dot_aws_credentials
+        dest: "{{ HOME }}/.aws/credentials"
+        owner: "{{ ME }}"
+        group: "{{ ME }}"
+        mode: 0700
       when: not aws_credentials.stat.exists
       become: true
       become_user: "{{ ME }}"
       tags:
         aws
 
-    - name: get aws .saml2aws parameters
-      command: "scp {{ ME }}@{{ OLD_ANSIBLE_HOST }}:.saml2aws {{ HOME }}/.saml2aws"
+    - name: set up aws .saml2aws parameters
+      template:
+        src: templates/dot_saml2aws
+        dest: "{{ HOME }}/.saml2aws"
+        owner: "{{ ME }}"
+        group: "{{ ME }}"
+        mode: 0700
       when: not aws_saml2aws.stat.exists
       become: true
       become_user: "{{ ME }}"
-      tags:
-        aws
-
-    - name: fix aws parameter file permissions
-      file:
-        path: "{{ HOME }}/{{ item }}"
-        mode: 0700
-      loop:
-        - .aws/config
-        - .aws/credentials
-        - .saml2aws
       tags:
         aws
 
@@ -470,6 +488,7 @@
       command: "rsync -a {{ ME }}@{{ OLD_ANSIBLE_HOST }}:SANDBOX/ {{ HOME }}/SANDBOX/"
       become: true
       become_user: "{{ ME }}"
+      when:  OLD_ANSIBLE_HOST != "NONE"
 # This didn't work
 #    - name: preserve SANDBOX files
 #      synchronize:
@@ -478,6 +497,7 @@
 #        dest: "{{ HOME }}/SANDBOX/"
 #      become: true
 #      become_user: "{{ ME }}"
+      when:  OLD_ANSIBLE_HOST != "NONE"
 
 
     - name: create labreport directory lis_archive

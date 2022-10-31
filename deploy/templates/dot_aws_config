@@ -1,0 +1,12 @@
+[default]
+output = json
+region = us-west-2
+
+[profile saml]
+region = us-west-2
+output = json
+
+[profile saml_dev]
+output = json
+region = us-west-2
+
